@@ -2,79 +2,101 @@ import math
 from collections import deque
 
 class WaterJugAI:
-    def __init__(self, capacity1, capacity2, target):
-        self.c1 = capacity1
-        self.c2 = capacity2
+    def __init__(self, jug1_cap, jug2_cap, target):
+        self.j1_cap = jug1_cap
+        self.j2_cap = jug2_cap
         self.target = target
         self.visited = set()
 
     def goal_test(self, state):
         """
-        Verifies the state description: 
-        Does either jug contain the exact target volume?
+        Verify the description: Does either jug contain the target volume?
+        This is arbitrary and works for any user input.
         """
-        j1, j2 = state
-        return j1 == self.target or j2 == self.target
+        return state[0] == self.target or state[1] == self.target
 
     def get_successors(self, state):
-        """Generates all valid next states from the current volume."""
+        """
+        Applies the 6 production rules of the Water Jug problem.
+        Returns a list of (new_state, action_description).
+        """
         j1, j2 = state
-        successors = [
-            ((self.c1, j2), "Fill Jug 1"),
-            ((j1, self.c2), "Fill Jug 2"),
-            ((0, j2), "Empty Jug 1"),
-            ((j1, 0), "Empty Jug 2"),
-            # Pour Jug 1 -> Jug 2
-            ((max(0, j1 - (self.c2 - j2)), min(self.c2, j1 + j2)), "Pour J1 -> J2"),
-            # Pour Jug 2 -> Jug 1
-            ((min(self.c1, j1 + j2), max(0, j2 - (self.c1 - j1))), "Pour J2 -> J1")
-        ]
-        return successors
+        moves = []
+
+        # 1. Fill Jug 1
+        moves.append(((self.j1_cap, j2), f"Fill Jug 1 ({self.j1_cap}L)"))
+        
+        # 2. Fill Jug 2
+        moves.append(((j1, self.j2_cap), f"Fill Jug 2 ({self.j2_cap}L)"))
+        
+        # 3. Empty Jug 1
+        moves.append(((0, j2), "Empty Jug 1"))
+        
+        # 4. Empty Jug 2
+        moves.append(((j1, 0), "Empty Jug 2"))
+        
+        # 5. Pour Jug 1 into Jug 2 
+        # (Either J1 becomes empty or J2 becomes full)
+        pour_to_2 = min(j1, self.j2_cap - j2)
+        moves.append(((j1 - pour_to_2, j2 + pour_to_2), "Pour J1 -> J2"))
+        
+        # 6. Pour Jug 2 into Jug 1
+        pour_to_1 = min(j2, self.j1_cap - j1)
+        moves.append(((j1 + pour_to_1, j2 - pour_to_1), "Pour J2 -> J1"))
+
+        return moves
 
     def solve(self):
-        # BFS Queue: (current_state, path_of_actions)
-        queue = deque([((0, 0), [])])
-        self.visited.add((0, 0))
+        # Initial State: Both jugs empty
+        start_node = (0, 0)
+        
+        # BFS Queue stores: (current_state, path_history)
+        queue = deque([(start_node, [])])
+        self.visited.add(start_node)
 
-        # Mathematical impossibility check
-        if self.target > max(self.c1, self.c2) or self.target % math.gcd(self.c1, self.c2) != 0:
+        # Optimization: Check if target is even reachable via GCD
+        if self.target > max(self.j1_cap, self.j2_cap) or self.target % math.gcd(self.j1_cap, self.j2_cap) != 0:
             return None
 
         while queue:
             (curr_j1, curr_j2), path = queue.popleft()
 
+            # Check the goal condition
             if self.goal_test((curr_j1, curr_j2)):
-                return path + [(f"GOAL REACHED: ({curr_j1}, {curr_j2})")]
+                return path + [(curr_j1, curr_j2)]
 
-            for next_state, action in self.get_successors((curr_j1, curr_j2)):
+            # Explore neighbors
+            for next_state, description in self.get_successors((curr_j1, curr_j2)):
                 if next_state not in self.visited:
                     self.visited.add(next_state)
-                    new_path = path + [f"{action} -> ({next_state[0]}, {next_state[1]})"]
+                    # Record the state and what we did to get there
+                    new_path = path + [(curr_j1, curr_j2, description)]
                     queue.append((next_state, new_path))
         
         return None
 
-# --- Execution ---
-def main():
-    print("=== AI Water Jug Solver (BFS) ===")
+# --- Main Execution Block ---
+if __name__ == "__main__":
+    print("--- Artificial Intelligence: Water Jug Solver ---")
+    
+    # User-defined arbitrary sizes
     try:
-        cap1 = int(input("Enter Capacity of Jug 1: "))
-        cap2 = int(input("Enter Capacity of Jug 2: "))
-        target = int(input("Enter Target Volume: "))
+        c1 = int(input("Enter Capacity of Jug 1: "))
+        c2 = int(input("Enter Capacity of Jug 2: "))
+        t = int(input("Enter the Target Volume: "))
 
-        agent = WaterJugAI(cap1, cap2, target)
-        solution = agent.solve()
+        solver = WaterJugAI(c1, c2, t)
+        solution = solver.solve()
 
         if solution:
-            print(f"\nSolution Found in {len(solution) - 1} steps:")
-            print("Start: (0, 0)")
-            for step in solution:
-                print(step)
+            print(f"\nSolution found! Steps to reach {t}L:")
+            for i, step in enumerate(solution):
+                if i == len(solution) - 1:
+                    print(f"Goal State: {step}")
+                else:
+                    print(f"Step {i+1}: {step[0], step[1]} -> {step[2]}")
         else:
-            print("\nNo solution possible for these inputs.")
+            print("\nResult: No solution exists for these parameters.")
             
     except ValueError:
-        print("Invalid input. Please enter integers only.")
-
-if __name__ == "__main__":
-    main()
+        print("Error: Please enter valid integers for jug sizes.")
